@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>π mPiCalc Dashboard</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background-color: #f9f9f9;
+            color: #222;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+        }
+
+        input, button, select {
+            padding: 8px;
+            font-size: 1em;
+            margin-top: 4px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+        }
+
+        #progress-bar {
+            width: 100%;
+            background: #ddd;
+            height: 24px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #progress {
+            height: 100%;
+            width: 0%;
+            background: #4caf50;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            line-height: 24px;
+            transition: width 0.3s ease;
+        }
+
+        pre {
+            background: #f0f0f0;
+            padding: 12px;
+            border: 1px solid #ccc;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .pi-section {
+            margin-top: 20px;
+        }
+
+        .save-button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #007acc;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .save-button:hover {
+            background: #005fa3;
+        }
+
+        .dark-mode {
+            background-color: #121212;
+            color: #eee;
+        }
+
+        .dark-mode pre {
+            background: #1e1e1e;
+            border-color: #444;
+        }
+
+        .dark-mode #progress-bar {
+            background: #333;
+        }
+
+        .dark-mode #progress {
+            background: #00c853;
+        }
+
+        .dark-toggle {
+            float: right;
+        }
+    </style>
+</head>
+<body>
+    <h1>π mPiCalc Dashboard</h1>
+    <label class="dark-toggle">
+        <input type="checkbox" id="darkToggle"> Dark Mode
+    </label>
+
+    <label>Digits to Calculate:
+        <input id="digits" type="number" value="1000" min="10">
+    </label>
+
+    <label>Number of Processes:
+        <input id="procs" type="number" value="4" min="1" max="32">
+    </label>
+
+    <label><input id="use_gmpy2" type="checkbox" checked> Use gmpy2 (if available)</label>
+    <button onclick="runCalc()">Start Calculation</button>
+
+    <div class="progress-container">
+        <div id="progress-bar"><div id="progress">0%</div></div>
+    </div>
+
+    <div class="pi-section">
+        <h3>Result:</h3>
+        <pre id="output">Waiting...</pre>
+        <button class="save-button" onclick="saveToFile()">Save π as .txt</button>
+    </div>
+
+    <script>
+        const output = document.getElementById("output");
+        const progress = document.getElementById("progress");
+
+        async function runCalc() {
+            const digits = parseInt(document.getElementById("digits").value);
+            const processes = parseInt(document.getElementById("procs").value);
+            const use_gmpy2 = document.getElementById("use_gmpy2").checked;
+
+            output.textContent = "Calculating π... Please wait.";
+            progress.style.width = "0%";
+            progress.textContent = "0%";
+
+            // Simulate progress animation
+            let progVal = 0;
+            const progSim = setInterval(() => {
+                progVal = Math.min(99, progVal + Math.random() * 5);
+                progress.style.width = progVal + "%";
+                progress.textContent = Math.floor(progVal) + "%";
+            }, 100);
+
+            try {
+                const res = await fetch("/compute", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ digits, processes, use_gmpy2 })
+                });
+                const data = await res.json();
+                clearInterval(progSim);
+                progress.style.width = "100%";
+                progress.textContent = "Done";
+
+                const piDigits = `π ≈ ${data.pi}`;
+                const metadata = `
+Digits: ${data.digits}
+Time: ${data.time}s
+Processes: ${data.processes}
+gmpy2 used: ${data.gmpy2}
+
+Timing per process:
+${data.timings.map(p => `  Process ${p.process}: ${p.seconds}s`).join('\n')}
+                `.trim();
+
+                output.textContent = `${piDigits}\n\n${metadata}`;
+            } catch (err) {
+                clearInterval(progSim);
+                progress.style.width = "0%";
+                progress.textContent = "Failed";
+                output.textContent = "❌ Error: " + err;
+            }
+        }
+
+        function saveToFile() {
+            const blob = new Blob([output.textContent], { type: "text/plain" });
+            const link = document.createElement("a");
+            link.download = "pi_digits.txt";
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        }
+
+        // Dark mode toggle
+        document.getElementById("darkToggle").addEventListener("change", function () {
+            document.body.classList.toggle("dark-mode", this.checked);
+        });
+    </script>
+</body>
+</html>
